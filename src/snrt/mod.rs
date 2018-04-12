@@ -1,5 +1,9 @@
+use std::boxed::Box;
+
 use snmath::Vector3;
 use snmath::Ray;
+
+pub mod material;
 
 pub struct Camera {
     pub lower_left_corner: Vector3,
@@ -14,25 +18,27 @@ impl Camera {
     }
 }
 
-#[derive(Clone,Copy,PartialEq,Default,Debug)]
-pub struct HitResult {
-    pub t: f64,
-    pub pos: Vector3,
-    pub normal: Vector3,
-}
 
 pub trait Hitable {
-    fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> (bool, HitResult);
+    fn hit_process(&self, r: &Ray, t: f64) -> (bool, Ray, Vector3);
+    fn hit_check(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<f64>;
 }
 
-#[derive(Clone,Copy,PartialEq,Default,Debug)]
 pub struct Sphere {
     pub pos: Vector3,
     pub radius: f64,
+    pub material: Box<material::Material>,
 }
 
 impl Hitable for Sphere {
-    fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> (bool, HitResult) {
+    fn hit_process(&self, r: &Ray, t: f64) -> (bool, Ray, Vector3) {
+        let hit_pos = r.point_at_parameter(t);
+        let hit_normal = (hit_pos - self.pos).normalize();
+
+        self.material.scatter(r, hit_pos, hit_normal)
+    }
+
+    fn hit_check(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<f64> {
         let oc = r.origin - self.pos;
 
         let a = r.direction.dot(&r.direction);
@@ -42,26 +48,19 @@ impl Hitable for Sphere {
         let discriminant = b*b - a*c;
 
         if discriminant < 0.0 {
-            return (false, HitResult::default());
+            return None;
         }
-        
-        let get_result = |t| {
-            let hit_pos = r.point_at_parameter(t);
-            let hit_normal = (hit_pos - self.pos).normalize();
-            HitResult {t:t, pos:hit_pos, normal:hit_normal}
-        };
 
         let t = (-b - discriminant.sqrt()) / a ; 
         if t > t_min && t < t_max {
-            return (true, get_result(t));
+            return Some(t);
         }
 
         let t = (-b + discriminant.sqrt()) / a ; 
         if t > t_min && t < t_max {
-            return (true, get_result(t));
+            return Some(t);
         }
 
-        // todo: check other t;
-        return (false, HitResult::default());
+        return None;
     }
 }

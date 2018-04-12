@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 extern crate rand;
-use rand::{thread_rng, ThreadRng, Rng};
+use rand::{thread_rng, Rng};
 
 mod snmath;
 mod snrt;
@@ -13,32 +13,47 @@ use snmath::Ray;
 use snrt::Sphere;
 use snrt::Hitable;
 use snrt::Camera;
+use snrt::material::Lambertian;
+use snrt::material::Metallic;
 
-fn random_vec_from_unit_sphere(rng: &mut ThreadRng) -> Vector3 {
-    let mut p = Vector3 {x:100.0,y:0.0,z:0.0};
-    let ones = Vector3 {x:1.0, y:1.0, z:1.0};
-    while p.length_sq() > 1.0 {
-        p = Vector3{x:rng.gen_range::<f64>(0.0,1.0),y:rng.gen_range::<f64>(0.0,1.0),z:rng.gen_range::<f64>(0.0,1.0)}*2.0 - ones;
-    }
-    return p;
-}
-
-fn color(r: Ray, world: &Vec<&Hitable>, rng: &mut ThreadRng) -> Vector3 {
+fn color(r: Ray, world: &Vec<Box<Hitable>>, bounce: i32) -> Vector3 {
     let world_iter = world.iter();
 
-    // todo:  fix this to pick the nearest point!
+    if bounce > 50 {
+        return Vector3::default();
+    }
+
+    let max_t = 100000.0;
+    let min_t = 0.0001;
+
+    let mut best:(f64, Option<&Box<Hitable>>) = (std::f64::MAX, None);
     for hitable in world_iter {
-        let res = hitable.hit(&r, 0.0001, 10000.0);
-        if res.0 {
-            let target = res.1.pos + res.1.normal + random_vec_from_unit_sphere(rng);
-            return  color(Ray{origin:res.1.pos, direction:target-res.1.pos}, world, rng)*0.5;
+        let res = hitable.hit_check(&r, min_t, max_t);
+        if res.is_some() {
+            let new_t = res.unwrap();
+
+            if new_t < best.0 {
+                best.0 = new_t;
+                best.1 = Some(hitable);
+            }
         }
     }
-    
-    //fake sky
-    let dir_norm = r.direction.normalize();
-    let t = 0.5*(dir_norm.y + 1.0);
-    Vector3::lerp(&Vector3{x:1.0,y:1.0,z:1.0}, &Vector3{x:0.5,y:0.7,z:1.0}, t)
+
+    match best.1 {
+        Some(b) => {
+            let scat = b.hit_process(&r,best.0);
+            if scat.0 {
+                return scat.2*color(scat.1, world, bounce+1);
+            }
+            return Vector3::default();
+        },
+        None => {
+            //fake sky
+            let dir_norm = r.direction.normalize();
+            let t = 0.5*(dir_norm.y + 1.0);
+            return Vector3::lerp(&Vector3{x:1.0,y:1.0,z:1.0}, &Vector3{x:0.5,y:0.7,z:1.0}, t);
+        }
+    }
 }
 
 fn main() -> std::io::Result<()> {
@@ -74,10 +89,11 @@ fn main() -> std::io::Result<()> {
         origin: Vector3{x:0.0,y:0.0,z:0.0},
     };
 
-    // this feels...uncomfortable
-    let mut world: Vec<&Hitable> = Vec::new();
-    world.push(&Sphere {pos: Vector3 {x:0.0, y:0.0, z:-1.0}, radius: 0.5});
-    world.push(&Sphere {pos: Vector3 {x:0.0, y:-100.5, z:-1.0}, radius: 100.0});
+    let mut world: Vec<Box<Hitable>> = Vec::new();
+    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:0.0, z:-1.0}, radius: 0.5, material:Box::new(Lambertian{albedo:Vector3{x:1.0,y:0.6,z:0.0}})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:-100.5, z:-1.0}, radius: 100.0, material:Box::new(Lambertian{albedo:Vector3{x:0.2,y:1.0,z:1.0}})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:1.0, y:0.0, z:-1.0}, radius: 0.5, material:Box::new(Metallic{albedo:Vector3{x:0.8,y:0.6,z:0.2}})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:-1.0, y:0.0, z:-1.0}, radius: 0.5, material:Box::new(Metallic{albedo:Vector3{x:0.8,y:0.8,z:0.8}})}));
 
     for y in (0..height).rev() {
         for x in 0..width {
@@ -86,7 +102,7 @@ fn main() -> std::io::Result<()> {
                 let u = (x as f64 + rng.gen_range::<f64>(0.0,1.0)) / f_width;
                 let v = (y as f64 + rng.gen_range::<f64>(0.0,1.0)) / f_height;
                 let r = cam.get_ray(u,v);
-                c = c + color(r, &world, &mut rng);
+                c = c + color(r, &world, 0);
             }
 
             let c = c * 255.99 / n_samples as f64;
