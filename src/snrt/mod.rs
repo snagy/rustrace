@@ -1,4 +1,5 @@
 use std::boxed::Box;
+use std::f64;
 
 use snmath::Vector3;
 use snmath::Ray;
@@ -6,15 +7,41 @@ use snmath::Ray;
 pub mod material;
 
 pub struct Camera {
+    pub origin: Vector3,
     pub lower_left_corner: Vector3,
     pub horizontal: Vector3,
     pub vertical: Vector3,
-    pub origin: Vector3,
+    u: Vector3,
+    v: Vector3,
+    w: Vector3,
+    lens_radius: f64,
 }
 
 impl Camera {
-    pub fn get_ray(&self, u: f64, v: f64) -> Ray {
-        Ray {origin:self.origin, direction:self.lower_left_corner + self.horizontal * u + self.vertical * v}
+    pub fn create_camera(look_from: Vector3, look_at: Vector3, v_up: Vector3, v_fov: f64, aspect_ratio: f64, aperture: f64, focal_dist: f64) -> Camera {
+        let lens_radius = aperture / 2.0;
+        let theta = v_fov * f64::consts::PI / 180.0;
+        let half_height = (theta / 2.0).tan();
+        let half_width = aspect_ratio * half_height;
+        
+        let w = (look_from-look_at).normalize();
+        let u = v_up.cross(&w).normalize();
+        let v = w.cross(&u);
+
+        Camera {
+            lower_left_corner: -half_width*focal_dist*u-half_height*focal_dist*v-focal_dist*w,
+            horizontal: 2.0*half_width*focal_dist*u,
+            vertical: 2.0*half_height*focal_dist*v,
+            origin: look_from,
+            u: u, v: v, w: w,
+            lens_radius: lens_radius
+        }
+    }
+
+    pub fn get_ray(&self, s: f64, t: f64) -> Ray {
+        let rd = self.lens_radius * Vector3::generate_random_unit_disc();
+        let jitter = self.u * rd.x + self.v * rd.y;
+        Ray {origin:self.origin+jitter, direction:self.lower_left_corner + self.horizontal * s + self.vertical * t - jitter}
     }
 }
 

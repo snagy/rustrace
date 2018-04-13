@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::prelude::*;
 
+extern crate time;
+
 extern crate rand;
 use rand::{thread_rng, Rng};
 
@@ -15,6 +17,7 @@ use snrt::Hitable;
 use snrt::Camera;
 use snrt::material::Lambertian;
 use snrt::material::Metallic;
+use snrt::material::Dielectric;
 
 fn color(r: Ray, world: &Vec<Box<Hitable>>, bounce: i32) -> Vector3 {
     let world_iter = world.iter();
@@ -24,7 +27,7 @@ fn color(r: Ray, world: &Vec<Box<Hitable>>, bounce: i32) -> Vector3 {
     }
 
     let max_t = 100000.0;
-    let min_t = 0.0001;
+    let min_t = 0.001;
 
     let mut best:(f64, Option<&Box<Hitable>>) = (std::f64::MAX, None);
     for hitable in world_iter {
@@ -61,6 +64,8 @@ fn main() -> std::io::Result<()> {
     let mut file = File::create("out.ppm")?;
     let mut rng = thread_rng();
 
+    let start_time = time::precise_time_s();
+
 
     write!(file, "P3\n")?;
 
@@ -82,18 +87,21 @@ fn main() -> std::io::Result<()> {
 
     write!(file, "{} {}\n255\n", width, height)?;
 
-    let cam = Camera {
-        lower_left_corner: Vector3{x:-2.0,y:-1.0,z:-1.0},
-        horizontal: Vector3{x:4.0,y:0.0,z:0.0},
-        vertical: Vector3{x:0.0,y:2.0,z:0.0},
-        origin: Vector3{x:0.0,y:0.0,z:0.0},
-    };
+    let look_from = Vector3 {x:3.0,y:3.0,z:2.0};
+    let look_at = Vector3 {x:0.0,y:0.0,z:-1.0};
+    let focal_dist = (look_from-look_at).length();
+
+    let cam = Camera::create_camera(look_from, look_at, Vector3 {x:0.0,y:1.0,z:0.0}, 15.0, f_width/f_height, 2.0, focal_dist);
 
     let mut world: Vec<Box<Hitable>> = Vec::new();
-    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:0.0, z:-1.0}, radius: 0.5, material:Box::new(Lambertian{albedo:Vector3{x:1.0,y:0.6,z:0.0}})}));
-    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:-100.5, z:-1.0}, radius: 100.0, material:Box::new(Lambertian{albedo:Vector3{x:0.2,y:1.0,z:1.0}})}));
-    world.push(Box::new(Sphere {pos: Vector3 {x:1.0, y:0.0, z:-1.0}, radius: 0.5, material:Box::new(Metallic{albedo:Vector3{x:0.8,y:0.6,z:0.2}})}));
-    world.push(Box::new(Sphere {pos: Vector3 {x:-1.0, y:0.0, z:-1.0}, radius: 0.5, material:Box::new(Metallic{albedo:Vector3{x:0.8,y:0.8,z:0.8}})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:-1000.0, z:0.0}, radius: 1000.0, 
+                                material:Box::new(Lambertian{albedo:Vector3{x:0.2,y:0.8,z:0.0}})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:0.0, z:-1.0}, radius: 0.5,
+                                material:Box::new(Lambertian{albedo:Vector3{x:0.1,y:0.2,z:0.5}})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:1.0, y:0.0, z:-1.0}, radius: 0.5,
+                                material:Box::new(Metallic{albedo:Vector3{x:0.8,y:0.6,z:0.2},roughness:0.3})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:-1.0, y:0.0, z:-1.0}, radius: 0.5, 
+                                material:Box::new(Dielectric{ior:1.5})}));
 
     for y in (0..height).rev() {
         for x in 0..width {
@@ -109,6 +117,8 @@ fn main() -> std::io::Result<()> {
             write!(file, "{} {} {}\n", c.x as i32, c.y as i32, c.z as i32)?;
         } 
     }
+
+    println!("Execution time: {}", time::precise_time_s()-start_time);
 
     Ok(())
 }

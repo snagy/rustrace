@@ -208,8 +208,28 @@ impl Vector3 {
         return p;
     }
 
+    pub fn generate_random_unit_disc() -> Vector3 {
+        let mut rng = thread_rng();
+        let mut p = Vector3 {x:100.0,y:0.0,z:0.0};
+        let ones = Vector3 {x:1.0, y:1.0, z:0.0};
+        while p.length_sq() > 1.0 {
+            p = Vector3{x:rng.gen_range::<f64>(0.0,1.0),y:rng.gen_range::<f64>(0.0,1.0),z:0.0} - ones;
+        }
+        return p;
+    }
+
     pub fn reflect_on(&self, normal: &Vector3) -> Vector3 {
         self - 2.0*self.dot(normal)*normal
+    }
+
+    pub fn refract(&self, normal: &Vector3, ni_over_nt: f64) -> Option<Vector3> {
+        let uv = self.normalize();
+        let dt = uv.dot(normal);
+        let discriminant = 1.0 - ni_over_nt*ni_over_nt*(1.0-dt*dt);
+        if discriminant > 0.0 {
+            return Some(ni_over_nt*(uv - normal*dt) - normal*discriminant.sqrt());
+        }
+        return None;
     }
 }
 
