@@ -1,5 +1,8 @@
 use std::fs::File;
-use std::io::prelude::*;
+
+extern crate image;
+pub use image::png::PNGEncoder;
+pub use image::ImageFormat::PNG;
 
 extern crate time;
 
@@ -29,7 +32,7 @@ fn color(r: Ray, world: &Vec<Box<Hitable>>, bounce: i32) -> Vector3 {
     let max_t = 100000.0;
     let min_t = 0.001;
 
-    let mut best:(f64, Option<&Box<Hitable>>) = (std::f64::MAX, None);
+    let mut best:(f32, Option<&Box<Hitable>>) = (std::f32::MAX, None);
     for hitable in world_iter {
         let res = hitable.hit_check(&r, min_t, max_t);
         if res.is_some() {
@@ -61,62 +64,112 @@ fn color(r: Ray, world: &Vec<Box<Hitable>>, bounce: i32) -> Vector3 {
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let mut file = File::create("out.ppm")?;
     let mut rng = thread_rng();
 
     let start_time = time::precise_time_s();
 
-
-    write!(file, "P3\n")?;
-
-    let width = match args[1].parse::<i32>() {
+    let width = match args[1].parse::<u32>() {
         Ok(n) => n,
         Err(_e) => 256,
     };
-    let f_width = width as f64;
 
-    let height = match args[2].parse::<i32>() {
+    let height = match args[2].parse::<u32>() {
         Ok(n) => n,
         Err(_e) => 256,
     };
-    let f_height = height as f64;
 
-    let n_samples = 100;
+    let f_width = width as f32;
+    let f_height = height as f32;
+
+    let n_samples = 150;
 
     println!("width {}, height {}", width, height);
 
-    write!(file, "{} {}\n255\n", width, height)?;
 
-    let look_from = Vector3 {x:3.0,y:3.0,z:2.0};
-    let look_at = Vector3 {x:0.0,y:0.0,z:-1.0};
+    let look_from = Vector3 {x:7.0,y:2.0,z:2.0};
+    let look_at = Vector3 {x:0.0,y:0.0,z:0.0};
     let focal_dist = (look_from-look_at).length();
 
-    let cam = Camera::create_camera(look_from, look_at, Vector3 {x:0.0,y:1.0,z:0.0}, 15.0, f_width/f_height, 2.0, focal_dist);
+    let cam = Camera::create_camera(look_from, look_at, Vector3 {x:0.0,y:1.0,z:0.0}, 40.0, f_width/f_height, 0.3, focal_dist);
 
     let mut world: Vec<Box<Hitable>> = Vec::new();
     world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:-1000.0, z:0.0}, radius: 1000.0, 
-                                material:Box::new(Lambertian{albedo:Vector3{x:0.2,y:0.8,z:0.0}})}));
-    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:0.0, z:-1.0}, radius: 0.5,
+                                material:Box::new(Lambertian{albedo:Vector3{x:0.4,y:0.4,z:0.5}})}));
+
+    let ball_min = -4;
+    let ball_max = 4;
+    for a in ball_min..ball_max {
+        for b in ball_min..ball_max {
+            let mat_val = rng.gen_range::<f32>(0.0,1.0);
+            let rad = rng.gen_range::<f32>(0.0,1.0) * 0.1 + 0.2;
+            let center = Vector3 {x:a as f32 + 0.9 * rng.gen_range::<f32>(0.0,1.0), y:rad, z:b as f32 + 0.9*rng.gen_range::<f32>(0.0,1.0) };
+            if mat_val < 0.8 {
+                world.push(Box::new(Sphere {pos:center, radius: rad,
+                                material:Box::new(Lambertian{albedo:Vector3{x:rng.gen_range::<f32>(0.0,1.0)*rng.gen_range::<f32>(0.0,1.0),
+                                                                            y:rng.gen_range::<f32>(0.0,1.0)*rng.gen_range::<f32>(0.0,1.0),
+                                                                            z:rng.gen_range::<f32>(0.0,1.0)*rng.gen_range::<f32>(0.0,1.0)}})}));
+            }
+            else if mat_val < 0.95 {
+                world.push(Box::new(Sphere {pos:center, radius: rad,
+                                material:Box::new(Metallic{ albedo:Vector3{ x:0.5*(1.0+rng.gen_range::<f32>(0.0,1.0)),
+                                                                            y:0.5*(1.0+rng.gen_range::<f32>(0.0,1.0)),
+                                                                            z:0.5*(1.0+rng.gen_range::<f32>(0.0,1.0))},
+                                                            roughness:0.5*rng.gen_range::<f32>(0.0,1.0)})}));
+
+            }
+            else {
+                world.push(Box::new(Sphere {pos:center, radius: rad,
+                                material:Box::new(Dielectric{ior:1.5})}));
+            }
+        }
+    }
+
+
+    world.push(Box::new(Sphere {pos: Vector3 {x:-4.0, y:1.0, z:-1.0}, radius: 1.0,
                                 material:Box::new(Lambertian{albedo:Vector3{x:0.1,y:0.2,z:0.5}})}));
-    world.push(Box::new(Sphere {pos: Vector3 {x:1.0, y:0.0, z:-1.0}, radius: 0.5,
-                                material:Box::new(Metallic{albedo:Vector3{x:0.8,y:0.6,z:0.2},roughness:0.3})}));
-    world.push(Box::new(Sphere {pos: Vector3 {x:-1.0, y:0.0, z:-1.0}, radius: 0.5, 
+    world.push(Box::new(Sphere {pos: Vector3 {x:4.0, y:1.0, z:-1.0}, radius: 1.0,
+                                material:Box::new(Metallic{albedo:Vector3{x:0.7,y:0.6,z:0.5},roughness:0.1})}));
+    world.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:1.0, z:-1.0}, radius: 1.0, 
                                 material:Box::new(Dielectric{ior:1.5})}));
 
-    for y in (0..height).rev() {
+    /* PPM write
+    let mut file = File::create("out.ppm")?;
+    write!(file, "P3\n")?;
+    write!(file, "{} {}\n255\n", width, height)?;
+    */
+
+    let buffer_stride = 3;
+    let num_pixels = height*width;
+    let mut buffer_rgb: Vec<u8> = vec![0;(num_pixels*buffer_stride) as usize];
+
+    for y in 0..height {
         for x in 0..width {
             let mut c = Vector3{x:0.0,y:0.0,z:0.0};
             for _sample in 0..n_samples {
-                let u = (x as f64 + rng.gen_range::<f64>(0.0,1.0)) / f_width;
-                let v = (y as f64 + rng.gen_range::<f64>(0.0,1.0)) / f_height;
+                let u = (x as f32 + rng.gen_range::<f32>(0.0,1.0)) / f_width;
+                let v = (y as f32 + rng.gen_range::<f32>(0.0,1.0)) / f_height;
                 let r = cam.get_ray(u,v);
                 c = c + color(r, &world, 0);
             }
 
-            let c = c * 255.99 / n_samples as f64;
-            write!(file, "{} {} {}\n", c.x as i32, c.y as i32, c.z as i32)?;
+            let c = (c / n_samples as f32).powf(1.0/2.2) * 255.99;
+            let pixel_idx = (((height-y-1)*width + x)*buffer_stride) as usize;
+            buffer_rgb[pixel_idx+0] = c.x as u8;
+            buffer_rgb[pixel_idx+1] = c.y as u8;
+            buffer_rgb[pixel_idx+2] = c.z as u8;
         } 
     }
+
+    let file_png = File::create("out.png")?;
+    let encoder = PNGEncoder::new(file_png);
+    encoder.encode(&buffer_rgb,width,height,image::ColorType::RGB(8))?;
+
+    /* PPM write
+    for p in (0..num_pixels).rev() {
+        let pixel_idx = (p*buffer_stride) as usize;
+        write!(file, "{} {} {}\n", buffer_rgb[pixel_idx+0] as i32, buffer_rgb[pixel_idx+1] as i32, buffer_rgb[pixel_idx+2] as i32)?;
+    }
+    */
 
     println!("Execution time: {}", time::precise_time_s()-start_time);
 

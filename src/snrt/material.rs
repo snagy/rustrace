@@ -26,7 +26,7 @@ impl Material for Lambertian {
 #[derive(Clone,Copy,PartialEq,Default,Debug)]
 pub struct Metallic {
     pub albedo: Vector3,
-    pub roughness: f64,
+    pub roughness: f32,
 }
 
 impl Material for Metallic {
@@ -41,11 +41,11 @@ impl Material for Metallic {
 
 #[derive(Clone,Copy,PartialEq,Default,Debug)]
 pub struct Dielectric {
-    pub ior: f64,
+    pub ior: f32,
 }
 
 impl Dielectric {
-    fn schlick(cosine: f64, ior: f64) -> f64 {
+    fn schlick(cosine: f32, ior: f32) -> f32 {
         let r0 = (1.0-ior) / (1.0+ior);
         let r0 = r0 * r0;
         return r0 + (1.0-r0)*(1.0-cosine).powi(5);
@@ -74,7 +74,7 @@ impl Material for Dielectric {
             1.0
         };
 
-        if thread_rng().gen_range::<f64>(0.0, 1.0) < reflect_probability {
+        if thread_rng().gen_range::<f32>(0.0, 1.0) < reflect_probability {
             return (true, Ray {origin:pos, direction:reflected}, attenuation);
         }
         return (true, Ray {origin:pos, direction:refraction.expect("some kind of dielectric probability error")}, attenuation);
