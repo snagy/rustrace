@@ -7,3 +7,4 @@ authors = ["Scott Nagy <scottanagy@gmail.com>"]
 rand = "0.4"
 time = "0.1"
 image = "*"
+scoped_threadpool = "*"

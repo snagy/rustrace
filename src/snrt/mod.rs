@@ -6,6 +6,7 @@ use snmath::Ray;
 
 pub mod material;
 
+#[derive(Clone,Copy,PartialEq,Default,Debug)]
 pub struct Camera {
     pub origin: Vector3,
     pub lower_left_corner: Vector3,
@@ -54,7 +55,7 @@ pub trait Hitable {
 pub struct Sphere {
     pub pos: Vector3,
     pub radius: f32,
-    pub material: Box<material::Material>,
+    pub material: Box<material::Material + Sync + Send>,
 }
 
 impl Hitable for Sphere {
