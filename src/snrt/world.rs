@@ -6,6 +6,8 @@ use snmath::Ray;
 
 use snrt::Hitable;
 use snrt::Sphere;
+use snrt::AABox;
+use snrt::material::Material;
 use snrt::material::Lambertian;
 use snrt::material::Metallic;
 use snrt::material::Dielectric;
@@ -45,32 +47,43 @@ impl World {
         for a in ball_min..ball_max {
             for b in ball_min..ball_max {
                 let mat_val = world_rng.gen_range::<f32>(0.0,1.0);
-                let rad = world_rng.gen_range::<f32>(0.0,1.0) * 0.1 + 0.2;
-                let center = Vector3 {x:a as f32 + 0.9 * world_rng.gen_range::<f32>(0.0,1.0), y:rad, z:b as f32 + 0.9*world_rng.gen_range::<f32>(0.0,1.0) };
+                let type_val = world_rng.gen_range::<f32>(0.0,1.0);
+                let rands = Vector3{x:world_rng.gen_range::<f32>(0.0,1.0) * 0.1 + 0.2,
+                                    y:world_rng.gen_range::<f32>(0.0,1.0) * 0.1 + 0.2,
+                                    z:world_rng.gen_range::<f32>(0.0,1.0) * 0.1 + 0.2};
+                let center = Vector3 {x:a as f32 + 0.6 * world_rng.gen_range::<f32>(0.0,1.0), y:rands.z, z:b as f32 + 0.6 * world_rng.gen_range::<f32>(0.0,1.0) };
+                let mut mat : Box<Material + Sync>;
                 if mat_val < 0.8 {
-                    new_world.entities.push(Box::new(Sphere {pos:center, radius: rad,
-                                    material:Box::new(Lambertian{albedo:Vector3{x:world_rng.gen_range::<f32>(0.0,1.0)*world_rng.gen_range::<f32>(0.0,1.0),
-                                                                                y:world_rng.gen_range::<f32>(0.0,1.0)*world_rng.gen_range::<f32>(0.0,1.0),
-                                                                                z:world_rng.gen_range::<f32>(0.0,1.0)*world_rng.gen_range::<f32>(0.0,1.0)}})}));
+                    mat = Box::new(Lambertian{albedo:Vector3{x:world_rng.gen_range::<f32>(0.0,1.0)*world_rng.gen_range::<f32>(0.0,1.0),
+                                                             y:world_rng.gen_range::<f32>(0.0,1.0)*world_rng.gen_range::<f32>(0.0,1.0),
+                                                             z:world_rng.gen_range::<f32>(0.0,1.0)*world_rng.gen_range::<f32>(0.0,1.0)}});
                 }
                 else if mat_val < 0.95 {
-                    new_world.entities.push(Box::new(Sphere {pos:center, radius: rad,
-                                    material:Box::new(Metallic{ albedo:Vector3{ x:0.5*(1.0+world_rng.gen_range::<f32>(0.0,1.0)),
-                                                                                y:0.5*(1.0+world_rng.gen_range::<f32>(0.0,1.0)),
-                                                                                z:0.5*(1.0+world_rng.gen_range::<f32>(0.0,1.0))},
-                                                                roughness:0.5*world_rng.gen_range::<f32>(0.0,1.0)})}));
+                    mat = Box::new(Metallic{ albedo:Vector3{ x:0.5*(1.0+world_rng.gen_range::<f32>(0.0,1.0)),
+                                                             y:0.5*(1.0+world_rng.gen_range::<f32>(0.0,1.0)),
+                                                             z:0.5*(1.0+world_rng.gen_range::<f32>(0.0,1.0))},
+                                                             roughness:0.5*world_rng.gen_range::<f32>(0.0,1.0)});
 
                 }
                 else {
-                    new_world.entities.push(Box::new(Sphere {pos:center, radius: rad,
-                                    material:Box::new(Dielectric{ior:1.5})}));
+                    mat = Box::new(Dielectric{ior:1.5});
                 }
+
+                if type_val < 0.5 {
+                    new_world.entities.push(Box::new(AABox {pos:center, dims:rands, material:mat}))
+                }
+                else {
+                    new_world.entities.push(Box::new(Sphere {pos:center, radius:rands.z, material:mat}));
+                }
+
             }
         }
 
 
-        new_world.entities.push(Box::new(Sphere {pos: Vector3 {x:-4.0, y:1.0, z:-1.0}, radius: 1.0,
+        new_world.entities.push(Box::new(AABox {pos: Vector3 {x:-4.0, y:1.0, z:-1.0}, dims: Vector3 {x:1.0,y:2.0,z:1.0},
                                     material:Box::new(Lambertian{albedo:Vector3{x:0.1,y:0.2,z:0.5}})}));
+        //new_world.entities.push(Box::new(Sphere {pos: Vector3 {x:-4.0, y:1.0, z:-1.0}, radius: 1.0,
+        //                            material:Box::new(Lambertian{albedo:Vector3{x:0.1,y:0.2,z:0.5}})}));
         new_world.entities.push(Box::new(Sphere {pos: Vector3 {x:4.0, y:1.0, z:-1.0}, radius: 1.0,
                                     material:Box::new(Metallic{albedo:Vector3{x:0.7,y:0.6,z:0.5},roughness:0.1})}));
         new_world.entities.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:1.0, z:-1.0}, radius: 1.0, 

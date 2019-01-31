@@ -93,3 +93,58 @@ impl Hitable for Sphere {
         return None;
     }
 }
+
+
+pub struct AABox {
+    pub pos: Vector3,
+    pub dims: Vector3,
+    pub material: Box<material::Material + Sync>,
+}
+
+
+impl Hitable for AABox {
+    fn hit_process(&self, r: &Ray, t: f32) -> (bool, Ray, Vector3) {
+        let hit_pos = r.point_at_parameter(t);
+        let offset = (hit_pos - self.pos)/self.dims;
+
+        let hit_normal = if offset.x.abs() > offset.y.abs() || offset.z.abs() > offset.y.abs() {
+            if offset.z.abs() > offset.x.abs() {
+                Vector3 {x:0.0, y:0.0, z:if offset.z > 0.0 { 1.0 } else { -1.0 } }
+            }
+            else {
+                Vector3 {x:if offset.x > 0.0 {1.0} else {-1.0}, y:0.0, z:0.0}
+            }
+        }
+        else {
+            Vector3 {x:0.0, y:if offset.y > 0.0 {1.0} else {-1.0}, z:0.0}
+        };
+
+        self.material.scatter(r, hit_pos, hit_normal)
+    }
+
+    fn hit_check(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<f32> {
+        let mins = self.pos - self.dims;
+        let maxs = self.pos + self.dims;
+
+        let tmins = (mins - r.origin) / r.direction;
+        let tmaxs = (maxs - r.origin) / r.direction;
+
+
+        let xmin = tmins.x.min(tmaxs.x);
+        let ymin = tmins.y.min(tmaxs.y);
+        let zmin = tmins.z.min(tmaxs.z);
+
+        let xmax = tmins.x.max(tmaxs.x);
+        let ymax = tmins.y.max(tmaxs.y);
+        let zmax = tmins.z.max(tmaxs.z);
+
+        if xmax > ymin && xmin < ymax && zmax > xmin && zmin < xmax && ymax  >zmin && ymin < zmax {
+            let hit_t = xmin.max(ymin.max(zmin));
+            if hit_t > t_min && hit_t < t_max {
+                return Some(hit_t);
+            }
+        }
+
+        return None;
+    }
+}
