@@ -12,6 +12,13 @@ use rand::{thread_rng, Rng};
 extern crate scoped_threadpool;
 use scoped_threadpool::Pool;
 
+#[macro_use]
+extern crate rustacuda;
+
+#[macro_use]
+extern crate rustacuda_derive;
+extern crate rustacuda_core;
+
 mod snmath;
 mod snrt;
 
@@ -20,6 +27,55 @@ use snmath::Ray;
 
 use snrt::Camera;
 use snrt::world::World;
+
+fn cuda_test() -> Result<(), Box<dyn std::error::Error>> {
+    use rustacuda::prelude::*;
+    use rustacuda::memory::DeviceBox;
+
+    // Initialize the CUDA API
+    rustacuda::init(CudaFlags::empty()).expect("CUDA init failed");
+    
+    // Get the first device
+    let device = Device::get_device(0).expect("CUDA device creation failed");
+
+    // Create a context associated to this device
+    let _context = Context::create_and_push(ContextFlags::MAP_HOST | ContextFlags::SCHED_AUTO, device).expect("CUDA context failed");
+
+    // Load the module containing the function we want to call
+    let module_data = std::ffi::CString::new(include_str!("../cuda_resources/add.ptx")).unwrap();
+    let module = Module::load_from_string(&module_data).expect("CUDA module load failed");
+
+    // Create a stream to submit work to
+    let stream = Stream::new(StreamFlags::NON_BLOCKING, None).expect("Stream create failed");
+
+    // Allocate space on the device and copy numbers to it.
+    let mut x = DeviceBox::new(&10.0f32)?;
+    let mut y = DeviceBox::new(&20.0f32)?;
+    let mut result = DeviceBox::new(&0.0f32)?;
+
+    // Launching kernels is unsafe since Rust can't enforce safety - think of kernel launches
+    // as a foreign-function call. In this case, it is - this kernel is written in CUDA C.
+    unsafe {
+        // Launch the `sum` function with one block containing one thread on the given stream.
+        launch!(module.sum<<<1, 1, 0, stream>>>(
+            x.as_device_ptr(),
+            y.as_device_ptr(),
+            result.as_device_ptr(),
+            1 // Length
+        )).expect("CUDA launch failed");
+    }
+
+    // The kernel launch is asynchronous, so we wait for the kernel to finish executing
+    stream.synchronize().expect("CUDA synchronize failed");
+
+    // Copy the result back to the host
+    let mut result_host = 0.0f32;
+    result.copy_to(&mut result_host).expect("CUDA result copy failed");
+    
+    println!("Sum is {}", result_host);
+
+    Ok(())
+}
 
 fn color(r: Ray, world: &World, bounce: i32) -> Vector3 {
     if bounce > 50 {
@@ -49,6 +105,8 @@ fn color(r: Ray, world: &World, bounce: i32) -> Vector3 {
 }
 
 fn main() -> std::io::Result<()> {
+    cuda_test().unwrap();
+
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 3 {
@@ -69,6 +127,11 @@ fn main() -> std::io::Result<()> {
         Err(_e) => 256,
     };
 
+    let box_pct = match args[3].parse::<f32>() {
+        Ok(n) => n,
+        Err(_e) => 0.5,
+    };
+
     let f_width = width as f32;
     let f_height = height as f32;
 
@@ -82,7 +145,7 @@ fn main() -> std::io::Result<()> {
     let focal_dist = (look_from-look_at).length();
     let cam = Camera::create_camera(look_from, look_at, Vector3 {x:0.0,y:1.0,z:0.0}, 40.0, f_width/f_height, 0.3, focal_dist);
 
-    let world = World::create();
+    let world = World::create(box_pct);
 
     let buffer_stride = 3;
     let mut buffer_rgb: Vec<u8> = Vec::new();

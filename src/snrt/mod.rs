@@ -138,7 +138,7 @@ impl Hitable for AABox {
         let ymax = tmins.y.max(tmaxs.y);
         let zmax = tmins.z.max(tmaxs.z);
 
-        if xmax > ymin && xmin < ymax && zmax > xmin && zmin < xmax && ymax  >zmin && ymin < zmax {
+        if xmax > ymin && xmin < ymax && zmax > xmin && zmin < xmax && ymax > zmin && ymin < zmax {
             let hit_t = xmin.max(ymin.max(zmin));
             if hit_t > t_min && hit_t < t_max {
                 return Some(hit_t);

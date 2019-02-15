@@ -35,7 +35,7 @@ impl World {
         return best;
     }
 
-    pub fn create() -> World {
+    pub fn create(box_pct : f32) -> World {
         let mut new_world = World { entities: Vec::new() };
         let mut world_rng = thread_rng();
 
@@ -69,7 +69,7 @@ impl World {
                     mat = Box::new(Dielectric{ior:1.5});
                 }
 
-                if type_val < 0.5 {
+                if type_val < box_pct {
                     new_world.entities.push(Box::new(AABox {pos:center, dims:rands, material:mat}))
                 }
                 else {
@@ -84,7 +84,7 @@ impl World {
                                     material:Box::new(Lambertian{albedo:Vector3{x:0.1,y:0.2,z:0.5}})}));
         //new_world.entities.push(Box::new(Sphere {pos: Vector3 {x:-4.0, y:1.0, z:-1.0}, radius: 1.0,
         //                            material:Box::new(Lambertian{albedo:Vector3{x:0.1,y:0.2,z:0.5}})}));
-        new_world.entities.push(Box::new(Sphere {pos: Vector3 {x:4.0, y:1.0, z:-1.0}, radius: 1.0,
+        new_world.entities.push(Box::new(AABox {pos: Vector3 {x:4.0, y:1.0, z:-1.0}, dims: Vector3 {x:1.0,y:1.0,z:1.0},
                                     material:Box::new(Metallic{albedo:Vector3{x:0.7,y:0.6,z:0.5},roughness:0.1})}));
         new_world.entities.push(Box::new(Sphere {pos: Vector3 {x:0.0, y:1.0, z:-1.0}, radius: 1.0, 
                                     material:Box::new(Dielectric{ior:1.5})}));
